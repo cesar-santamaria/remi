@@ -12,6 +12,7 @@ const io = socketio(server);
 //Socket listeners
 io.on('connection', socket => {
   console.log("User has connected")
+  console.log(socket)
 });
 
 // Express Configuration
@@ -22,6 +23,7 @@ app.use(express.static('public'));
 // Sample GET route
 app.get('/api/data', (req, res) => res.json({
   message: "Seems to work!",
+  
 }));
 
 server.listen(PORT, () => {
