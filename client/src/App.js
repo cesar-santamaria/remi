@@ -1,45 +1,56 @@
 import React, { Component } from 'react';
 import axios from 'axios';
 import './App.css';
-import './AudioPlayer'
+import AudioPlayer from './AudioPlayer';
+import UserForm from './components/UserForm';
+import Game from './Game'
 
-class App extends Component {
-  constructor(props) {
-    super(props)
-    this.state = {
-      message: 'Click the button to load data!',
-      src: ''
-    }
-  }
+//Socket io client
+import socketIOClient from 'socket.io-client';
+const ENDPOINT = '/';
+let socket = '';
 
-  fetchData = () => {
-    axios.get('https://api.deezer.com/track/3135554') // You can simply make your requests to "/api/whatever you want"
+
+const App = () => {
+
+  const[username, setUsername] = useState('');
+  const [users, setUsers] = useState([]);
+  const [state, setState] = useState({
+    message: 'Click the button to load data!',
+    src: ''
+  });
+
+  const fetchData = () => {
+    axios.get('/api/data') 
     .then((response) => {
       // handle success
-      console.log(response.data) // The entire response from the Rails API
-
-      console.log(response.data.title) // Just the message
-      this.setState({
-        message: response.data.title,
-        src: response.data.preview
+      console.log(response.data) 
+      setState({
+        ...state,
+        src: response.data.src
       });
     }) 
+
+  }
+  const createSocket = (user) => {
+    socket = socketIOClient(ENDPOINT, {
+      query: `username=${user}`
+    });
+    setUsername(user);
   }
 
-  render() {
-    return (
-      <div className="App">
-        <h1>{ this.state.message }</h1>
-        <button onClick={this.fetchData} >
-          Fetch Data
-        </button>        
-        <audio autoPlay name="media">
-          <source src="https://cdns-preview-b.dzcdn.net/stream/c-b2e0166bba75a78251d6dca9c9c3b41a-7.mp3" type="audio/mpeg" />
-          Your browser does not support MP3
-        </audio>
-      </div>
-    );
-  }
+  return (
+    <div className="App">
+      <h1>{ state.message }</h1>
+      <button onClick={fetchData} >
+        Fetch Data
+      </button>        
+      {state.src && <AudioPlayer src ={state.src}/>}
+      
+      {username ? <Game username = {username} socket = {socket}/> : <UserForm setUserName ={setUsername} createSocket = {createSocket}/>}
+      
+    </div>
+  );
 }
 
 export default App;
