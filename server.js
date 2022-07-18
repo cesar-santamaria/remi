@@ -1,8 +1,10 @@
 const express = require('express')
 const app = express()
 const BodyParser = require('body-parser')
+const axios = require('axios')
 const { getToken, getPlaylist } = require('./helpers/spotify')
 const ikea = require('ikea-name-generator')
+require('dotenv').config()
 
 const PORT = 8080
 
@@ -29,6 +31,10 @@ io.on('connection', (socket) => {
     users.push(socket.handshake.query.username)
     console.log('users: ', users)
   })
+})
+
+socket.on('Guess', guess => {
+  socket.to(roomId).emit('chat-messages', `${user}: ${guess}`)
 })
 
 // Express Configuration
