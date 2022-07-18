@@ -1,6 +1,7 @@
-import React, { Component } from 'react';
+import React, { useState, useEffect } from "react";
 import axios from 'axios';
 import './App.css';
+
 import AudioPlayer from './AudioPlayer';
 import UserForm from './components/UserForm';
 import Game from './Game'
@@ -8,16 +9,20 @@ import Game from './Game'
 //Socket io client
 import socketIOClient from 'socket.io-client';
 const ENDPOINT = '/';
-let socket = '';
-
 
 const App = () => {
 
   const[username, setUsername] = useState('');
+  const [user, setUser] = useState({
+    username: '',
+    roomId: roomId,
+    score: 0
+  });
   const [users, setUsers] = useState([]);
+  const [socket, setSocket] = useState({})
   const [state, setState] = useState({
-    message: 'Click the button to load data!',
-    src: ''
+    message: "Click the button to load data!",
+    src: "",
   });
 
   const fetchData = () => {
@@ -34,9 +39,15 @@ const App = () => {
   }
   const createSocket = (user) => {
     socket = socketIOClient(ENDPOINT, {
-      query: `username=${user}`
+      query: { username: user, roomId: roomId }
     });
-    setUsername(user);
+    setUser(prev => {
+      return { 
+        ...prev,
+        username:user,
+        roomId: prev.roomId ? prev.roomId : roomId 
+      }
+    });
   }
 
   return (
@@ -47,7 +58,7 @@ const App = () => {
       </button>        
       {state.src && <AudioPlayer src ={state.src}/>}
       
-      {username ? <Game username = {username} socket = {socket}/> : <UserForm setUserName ={setUsername} createSocket = {createSocket}/>}
+      {username ? <Game user= {user} socket = {socket}/> : <UserForm createSocket = {createSocket}/>}
       
     </div>
   );
