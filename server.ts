@@ -1,35 +1,30 @@
 const express = require('express')
 const app = express()
 const BodyParser = require('body-parser')
-const path = require("path");
-const cors = require("cors");
-require('dotenv').config();
+const path = require('path')
+const cors = require('cors')
+require('dotenv').config()
 
-const PORT: number = Number(process.env.PORT) || 8080;
+const PORT: number = Number(process.env.PORT) || 8080
 
-import { AxiosResponse } from "axios";
-import { CorsOptions } from "cors";
-import { Express } from "express";
-import { IArtist, Irooms, Itracks } from "./interface";
-import { createServer } from "http";
-import { Server } from "socket.io";
+import { AxiosResponse } from 'axios'
+import { CorsOptions } from 'cors'
+import { Express } from 'express'
+import { IArtist, Irooms, Itracks } from './interface'
+import { createServer } from 'http'
+import { Server } from 'socket.io'
 
-const whitelist: string[] = [
-  "http://localhost:3000",
-  "http://localhost:8081",
-]
-
+const whitelist: string[] = ['http://localhost:3000', 'http://localhost:8081']
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
     if (!origin || whitelist.indexOf(origin) !== -1) {
-      callback(null, true);
+      callback(null, true)
     } else {
-      callback(new Error("Not allowed by CORS"));
+      callback(new Error('Not allowed by CORS'))
     }
   },
-};
-
+}
 
 // helper functions
 const {
@@ -38,27 +33,27 @@ const {
   filterTitles,
   createAutocomplete,
   queryArtist,
-} = require("./helpers/spotify");
-const { getTrack, findRoomIndex, findUserIndex } = require("./helpers/game");
-const sampleSonglist = require("./helpers/autocompleteSongs");
+} = require('./helpers/spotify')
+const { getTrack, findRoomIndex, findUserIndex } = require('./helpers/game')
+const sampleSonglist = require('./helpers/autocompleteSongs')
 
 // Server set up
-const server = createServer(app);
-const io = new Server(server);
+const server = createServer(app)
+const io = new Server(server)
 
 // Express Configuration
 app.use(BodyParser.urlencoded({ extended: false }))
 app.use(BodyParser.json())
 app.use(express.static('public'))
-app.use(cors(corsOptions));
+app.use(cors(corsOptions))
 
-if (process.env.NODE_ENV === "production") {
+if (process.env.NODE_ENV === 'production') {
   // Serve any static files
-  app.use(express.static(path.join(__dirname, "react-front-end/build")));
+  app.use(express.static(path.join(__dirname, 'react-front-end/build')))
   // Handle React routing, return all requests to React app
-  app.get("*", function (req:any, res:any) {
-    res.sendFile(path.join(__dirname, "react-front-end/build", "index.html"));
-  });
+  app.get('*', function (req: any, res: any) {
+    res.sendFile(path.join(__dirname, 'react-front-end/build', 'index.html'))
+  })
 }
 
 server.listen(PORT, () => {
@@ -66,19 +61,19 @@ server.listen(PORT, () => {
 })
 
 // global variables
-let token: string  = "";
-let rooms: Irooms[] = [];
-const maxNumPlayers: number = 8;
+let token: string = ''
+let rooms: Irooms[] = []
+const maxNumPlayers: number = 8
 
 // retrieves authentication token from spotify
 getToken().then((res: AxiosResponse) => {
-  token = res.data.access_token;
-});
+  token = res.data.access_token
+})
 
 setInterval(() => {
   getToken().then((res: AxiosResponse) => {
-    token = res.data.access_token;
-  });
+    token = res.data.access_token
+  })
 }, 3.5e6)
 
 /* New socket CONNECTION established to server from client
@@ -90,18 +85,18 @@ setInterval(() => {
  *
  * @return - <message>: 'update-users' - Send a socket emit to the room, updating the clients with the user information
  */
-io.on("connection", (socket) => {
-  let { username, roomId, avatar } = socket.handshake.query;
-  let roomIndex = findRoomIndex(rooms, roomId);
+io.on('connection', (socket) => {
+  let { username, roomId, avatar } = socket.handshake.query
+  let roomIndex = findRoomIndex(rooms, roomId)
 
   if (!roomId || Array.isArray(roomId)) {
-    return;
+    return
   }
   if (!username || Array.isArray(username)) {
-    return;
+    return
   }
   if (!avatar || Array.isArray(avatar)) {
-    return;
+    return
   }
 
   if (roomIndex === -1) {
@@ -124,12 +119,12 @@ io.on("connection", (socket) => {
           winning: false,
         },
       ],
-    });
-    roomIndex = findRoomIndex(rooms, roomId);
-    io.to(socket.id).emit("joined-room", "success");
+    })
+    roomIndex = findRoomIndex(rooms, roomId)
+    io.to(socket.id).emit('joined-room', 'success')
   } else {
     if (rooms[roomIndex].users.length >= maxNumPlayers) {
-      return io.to(socket.id).emit("room-full", "Room is full");
+      return io.to(socket.id).emit('room-full', 'Room is full')
     }
     rooms[roomIndex].users.push({
       id: socket.id,
@@ -140,14 +135,32 @@ io.on("connection", (socket) => {
       roundScore: 0,
       host: false,
       winning: false,
-    });
-    io.to(socket.id).emit("joined-room", "success");
+    })
+    io.to(socket.id).emit('joined-room', 'success')
   }
 
-  let userIndex = findUserIndex(rooms[roomIndex], socket.id);
-  socket.join(roomId);
+  let userIndex = findUserIndex(rooms[roomIndex], socket.id)
+  socket.join(roomId)
 
-// io.in(roomId).emit("update-users", rooms[roomIndex]?.users);
-io.in(rooms[roomIndex]?.id).emit("update-users", rooms[roomIndex]?.users);
-io.to(socket.id).emit("update-user", rooms[roomIndex]?.users[userIndex]);
-});
+  // io.in(roomId).emit("update-users", rooms[roomIndex]?.users);
+  io.in(rooms[roomIndex]?.id).emit('update-users', rooms[roomIndex]?.users)
+  io.to(socket.id).emit('update-user', rooms[roomIndex]?.users[userIndex])
+
+  /* NEW GAME message sent to the sever.
+   * @params - <message>: 'new-game'
+   *
+   * The host has started a new game with the existing clients. Zero the score before transitioning back to the lobby
+   *
+   * @return - <message>: 'update-users', {users[]} - Update all clients in the room with the zeroed scores
+   * @return - <message>: 'start-new-game' - Instruct all users to transition to the LOBBY mode
+   */
+  socket.on('new-game', () => {
+    rooms[roomIndex].currentRound = 1
+    rooms[roomIndex]?.users.forEach((u) => {
+      u.score = 0
+      u.roundScore = 0
+    })
+    io.in(rooms[roomIndex]?.id).emit('update-users', rooms[roomIndex]?.users)
+    io.in(rooms[roomIndex]?.id).emit('start-new-game', 'new-game')
+  })
+})
