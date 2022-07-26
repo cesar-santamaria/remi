@@ -1,55 +1,153 @@
 const express = require('express')
 const app = express()
 const BodyParser = require('body-parser')
+const path = require("path");
+const cors = require("cors");
+require('dotenv').config();
+
+const PORT: number = Number(process.env.PORT) || 8080;
+
 import { AxiosResponse } from "axios";
-const { getToken, getPlaylist } = require('./helpers/spotify')
-const ikea = require('ikea-name-generator')
-require('dotenv').config()
-const PORT = 8080
+import { CorsOptions } from "cors";
+import { Express } from "express";
+import { IArtist, Irooms, Itracks } from "./interface";
+import { createServer } from "http";
+import { Server } from "socket.io";
+
+const whitelist: string[] = [
+  "http://localhost:3000",
+  "http://localhost:8081",
+]
 
 
-//socket IO
-const socketio = require('socket.io')
-const http = require('http')
-const server = http.createServer(app)
-const io = socketio(server)
+const corsOptions: CorsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || whitelist.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+};
+
+
+// helper functions
+const {
+  getToken,
+  getPlaylist,
+  filterTitles,
+  createAutocomplete,
+  queryArtist,
+} = require("./helpers/spotify");
+const { getTrack, findRoomIndex, findUserIndex } = require("./helpers/game");
+const sampleSonglist = require("./helpers/autocompleteSongs");
+
+// Server set up
+const server = createServer(app);
+const io = new Server(server);
 
 // Express Configuration
 app.use(BodyParser.urlencoded({ extended: false }))
 app.use(BodyParser.json())
 app.use(express.static('public'))
+app.use(cors(corsOptions));
 
-let token = ''
-getToken().then((res:any) => (token = res.data.access_token))
-
-
-// Sample GET route
-app.get('/api/data', (req:any, res:any) => {
-  getPlaylist(token).then((result:any) =>
-    res.json({ src: result.data.tracks[0].preview_url })
-  )
-})
+if (process.env.NODE_ENV === "production") {
+  // Serve any static files
+  app.use(express.static(path.join(__dirname, "react-front-end/build")));
+  // Handle React routing, return all requests to React app
+  app.get("*", function (req:any, res:any) {
+    res.sendFile(path.join(__dirname, "react-front-end/build", "index.html"));
+  });
+}
 
 server.listen(PORT, () => {
-  // eslint-disable-next-line no-console
   console.log(`seems to be listening on port ${PORT} 🙉`)
 })
 
-let users:any = []
+// global variables
+let token: string  = "";
+let rooms: Irooms[] = [];
+const maxNumPlayers: number = 8;
 
-//Socket listeners
-io.on('connection', (socket:any) => {
-  const user = socket.handshake.query.username;
-  const roomId = socket.handshake.query.roomId;
-  console.log('User has connected', user )
-  users.push(user)
-  console.log("users: ", users)
+// retrieves authentication token from spotify
+getToken().then((res: AxiosResponse) => {
+  token = res.data.access_token;
+});
+
+setInterval(() => {
+  getToken().then((res: AxiosResponse) => {
+    token = res.data.access_token;
+  });
+}, 3.5e6)
+
+/* New socket CONNECTION established to server from client
+ * @params - {Socket object}: Socket
+ *          {Socket.handshake.query}: username {string}, roomId {number}, avatar{ulr}
+ * From the given roomId determine if the room already exists (findRoomIndex())
+ *  - IF it doesn't then create a new room and push the connected user in the users array
+ *  - ELSE push the connected user into the users array within the current room (roomIndex)
+ *
+ * @return - <message>: 'update-users' - Send a socket emit to the room, updating the clients with the user information
+ */
+io.on("connection", (socket) => {
+  let { username, roomId, avatar } = socket.handshake.query;
+  let roomIndex = findRoomIndex(rooms, roomId);
+
+  if (!roomId || Array.isArray(roomId)) {
+    return;
+  }
+  if (!username || Array.isArray(username)) {
+    return;
+  }
+  if (!avatar || Array.isArray(avatar)) {
+    return;
+  }
+
+  if (roomIndex === -1) {
+    rooms.push({
+      id: roomId,
+      tracks: [],
+      titles: [],
+      currentTrack: {} as Itracks,
+      rounds: 0,
+      currentRound: 1,
+      users: [
+        {
+          id: socket.id,
+          username,
+          roomId,
+          avatar,
+          score: 0,
+          roundScore: 0,
+          host: true,
+          winning: false,
+        },
+      ],
+    });
+    roomIndex = findRoomIndex(rooms, roomId);
+    io.to(socket.id).emit("joined-room", "success");
+  } else {
+    if (rooms[roomIndex].users.length >= maxNumPlayers) {
+      return io.to(socket.id).emit("room-full", "Room is full");
+    }
+    rooms[roomIndex].users.push({
+      id: socket.id,
+      username,
+      roomId,
+      avatar,
+      score: 0,
+      roundScore: 0,
+      host: false,
+      winning: false,
+    });
+    io.to(socket.id).emit("joined-room", "success");
+  }
+
+  let userIndex = findUserIndex(rooms[roomIndex], socket.id);
   socket.join(roomId);
 
-  socket.emit('INITIAL_CONNNECTION', { name, users })
-  socket.broadcast.emit('NEW_USER', { name })
-
-  socket.on('Guess', (guess:any) => {
-    socket.to(roomId).emit('chat-messages', `${user}: ${guess}`)
-  })
-})
+// io.in(roomId).emit("update-users", rooms[roomIndex]?.users);
+io.in(rooms[roomIndex]?.id).emit("update-users", rooms[roomIndex]?.users);
+io.to(socket.id).emit("update-user", rooms[roomIndex]?.users[userIndex]);
+});
