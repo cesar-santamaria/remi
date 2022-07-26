@@ -163,4 +163,51 @@ io.on('connection', (socket) => {
     io.in(rooms[roomIndex]?.id).emit('update-users', rooms[roomIndex]?.users)
     io.in(rooms[roomIndex]?.id).emit('start-new-game', 'new-game')
   })
+
+  /* START GAME message sent to the sever.
+   * @params - <message>: 'new-game', {genre, rounds} - the genre and number of rounds selected for the game
+   *
+   * The host has started thr game. Use the provided genre to call the Spotify API and generate tracks.
+   *  getPlaylist(token, genre)
+   * Grab a track to play from that list. getTrack(rooms, roomId)
+   * Update the room with the number of selected rounds.
+   * Create an list of red-herring songs for autocorrect input field.
+   *
+   * @return - <message>: 'next-track', {track} - Update all clients in the room with the track to be played next
+   * @return - <message>: 'track-list' -  Update all clients in the room with a list of titles to use for autocomplete
+   * @return - <message>: 'game-started' - Instruct all users to transition to the COUNTDOWN mode
+   * @return - 5 second delay - <message>: 'round-start' - Instruct all users to transition to the ROUND mode to start the round
+   */
+  socket.on('start-game', (genre: string, rounds: number, artist: string) => {
+    getPlaylist(token, genre, artist).then((result: AxiosResponse) => {
+      const tracks: Itracks[] = result.data.tracks.filter(
+        (t: Itracks) => t.preview_url !== null
+      )
+      const titles = filterTitles(tracks)
+
+      rooms[roomIndex] = { ...rooms[roomIndex], tracks, titles, rounds }
+      if (!roomId || Array.isArray(roomId)) {
+        return
+      }
+
+      if (tracks.length >= rooms[roomIndex].rounds) {
+        const nextTrack = getTrack(rooms, roomId)
+        const autocomplete = createAutocomplete(sampleSonglist, titles)
+
+        io.to(roomId).emit('next-track', nextTrack)
+        io.to(roomId).emit('track-list', autocomplete)
+
+        io.to(roomId).emit('game-started', roomId)
+        setTimeout(() => {
+          if (rooms[roomIndex] === undefined) return
+          io.to(rooms[roomIndex]?.id).emit(
+            'round-start',
+            rooms[roomIndex]?.currentRound
+          )
+        }, 5000)
+      } else {
+        io.to(roomId).emit('error', 'Please select a different artist.')
+      }
+    })
+  })
 })
