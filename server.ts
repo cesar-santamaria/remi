@@ -210,4 +210,57 @@ io.on('connection', (socket) => {
       }
     })
   })
+
+  /* END OF ROUND message sent to the sever.
+   * @params - <message>: 'end-of-round'
+   *
+   * From the given roomId determine if the room already exists (findRoomIndex())
+   *  - IF it doesn't then create a new room and push the connected user in the users array
+   *  - ELSE push the connected user into the users array within the current room (roomIndex)
+   *
+   * @return
+   * - IF the room round = current round - <message>: 'end-of-game'
+   *          - send message to clients in the room the game is over
+   *  - ELSE  - 10 second delay - <message>: 'end-of-game',  {nextTrack} next track to play
+   *            - send message to clients in the room to go to the next round, provide new track
+   *          - 15 second delay - <message>: 'round-start',  {currentRound} current round
+   *          - Update the client with the current round and direct them to start the round
+   */
+  socket.on('end-of-round', () => {
+    userIndex = findUserIndex(rooms[roomIndex], socket.id)
+
+    if (!rooms[roomIndex]?.users[userIndex].host) return
+    rooms[roomIndex].currentRound++
+
+    if (rooms[roomIndex]?.currentRound === rooms[roomIndex]?.rounds + 1) {
+      return setTimeout(() => {
+        if (!roomId || Array.isArray(roomId)) {
+          return
+        }
+        if (rooms[roomIndex] === undefined) return
+        io.in(roomId).emit('end-of-game', 'End of Game')
+      }, 10000)
+    }
+
+    const nextTrack = getTrack(rooms, roomId)
+    setTimeout(() => {
+      if (rooms[roomIndex] === undefined) return
+      rooms[roomIndex]?.users.forEach((user) => {
+        user.roundScore = 0
+      })
+      if (!roomId || Array.isArray(roomId)) {
+        return
+      }
+      io.in(roomId).emit('next-round', nextTrack)
+    }, 10000)
+
+    setTimeout(() => {
+      // After the 5 second countdown, Tell clients to play track and start guessing
+      if (rooms[roomIndex] === undefined) return
+      if (!roomId || Array.isArray(roomId)) {
+        return
+      }
+      io.to(roomId).emit('round-start', rooms[roomIndex]?.currentRound)
+    }, 15000)
+  })
 })
