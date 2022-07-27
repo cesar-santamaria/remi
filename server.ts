@@ -298,4 +298,18 @@ io.on('connection', (socket) => {
       avatar,
     })
   })
+
+  /* SEND CHAT MESSAGE message sent to the sever.
+   * @params - <message>: 'send-chat-message'
+   * @params - {message}: The message sent by the socket (client)
+   *
+   * @return - <message>: 'receive-chat-messages' {username, message, avatar} - Update all clients in the room with a message sent by the socket
+   */
+  socket.on('send-chat-message', (message: string) => {
+    io.in(rooms[roomIndex]?.id).emit('receive-chat-messages', {
+      username,
+      message,
+      avatar,
+    })
+  })
 })
