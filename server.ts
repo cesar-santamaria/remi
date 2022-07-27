@@ -263,4 +263,39 @@ io.on('connection', (socket) => {
       io.to(roomId).emit('round-start', rooms[roomIndex]?.currentRound)
     }, 15000)
   })
+
+  /* CORRECT ANSWER message sent to the sever.
+   * @params - <message>: 'correct-answer'
+   * @params - {score}: The score the user received for guessing the correct answer
+   *
+   * @return - <message>: 'update-users' - Update all clients in the room with the updated scores
+   * @return - <message>: 'receive-chat-messages' - Update all clients in the room with a message stating a corrent answer was sumbitted by the user
+   */
+  socket.on('correct-answer', (score: number) => {
+    if (!roomId || Array.isArray(roomId)) {
+      return
+    }
+    userIndex = findUserIndex(rooms[roomIndex], socket.id)
+
+    if (rooms[roomIndex]?.users[userIndex].roundScore) return
+
+    rooms[roomIndex].users[userIndex].score += score
+    rooms[roomIndex].users[userIndex].roundScore = score
+
+    rooms[roomIndex]?.users.sort((a, b) => b.score - a.score)
+    rooms[roomIndex].users[0].winning = true
+    if (rooms[roomIndex]?.users.length > 1) {
+      for (let i = 1; i < rooms[roomIndex]?.users.length; i++) {
+        rooms[roomIndex].users[i].winning = false
+      }
+    }
+
+    io.in(roomId).emit('update-users', rooms[roomIndex]?.users)
+
+    io.in(roomId).emit('receive-chat-messages', {
+      username,
+      message: `Correct guess! Scored: ${score}`,
+      avatar,
+    })
+  })
 })
