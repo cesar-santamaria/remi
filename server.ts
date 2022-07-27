@@ -312,4 +312,24 @@ io.on('connection', (socket) => {
       avatar,
     })
   })
+
+  /* SEARCH ARTIST message sent to the sever.
+   * @params - <message>: 'search-artist'
+   * @params - {searchParam}: search query to send to Spotify's API
+   *
+   * @return - <message>: 'artist-list' {artist, id} - An array of artist and that artist corrisponding Spotify id
+   */
+  socket.on('search-artist', (searchParam: string) => {
+    queryArtist(token, searchParam).then((result: AxiosResponse) => {
+      if (!roomId || Array.isArray(roomId)) {
+        return
+      }
+      io.to(roomId).emit(
+        'artist-list',
+        result.data.artists.items.map((artist: IArtist) => {
+          return { artist: artist.name, id: artist.id }
+        })
+      )
+    })
+  })
 })
