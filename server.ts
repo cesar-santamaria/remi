@@ -332,4 +332,41 @@ io.on('connection', (socket) => {
       )
     })
   })
+
+  // disconnects user and removes them from users array
+  /* Socket has DISCONNECTed message sent to the sever.
+   * @params - <message>: 'disconnect' - the socket has disconnected
+   *
+   * The socket has disconnected. Remove the users from the rooms users array.
+   * IF that user was host:
+   * IF there are no other users in the room delete the room from the rooms array
+   * ELSE assign a new user the host role (default user[0])
+   *
+   * @return - <message>: 'update-users', {users[]} - Update all clients in the room with the current users in the room
+   */
+  socket.on('disconnect', () => {
+    if (!roomId || Array.isArray(roomId)) {
+      return
+    }
+    userIndex = findUserIndex(rooms[roomIndex], socket.id)
+    if (userIndex === -1) return
+    const disUser = rooms[roomIndex]?.users[userIndex]
+    if (!disUser) return
+
+    rooms[roomIndex].users = rooms[roomIndex]?.users.filter(
+      ({ id }) => id !== socket.id
+    )
+
+    if (disUser?.host) {
+      if (rooms[roomIndex]?.users.length !== 0) {
+        rooms[roomIndex].users[0].host = true
+        console.log('New host ', rooms[roomIndex]?.users[0])
+      } else return rooms.splice(roomIndex, 1)
+    }
+    io.in(roomId).emit('update-users', rooms[roomIndex]?.users)
+    io.to(rooms[roomIndex]?.users[0].id).emit(
+      'update-user',
+      rooms[roomIndex]?.users[0]
+    )
+  })
 })
