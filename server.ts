@@ -1,30 +1,35 @@
-const express = require('express')
-const app = express()
-const BodyParser = require('body-parser')
-const path = require('path')
-const cors = require('cors')
-require('dotenv').config()
+const express = require("express");
+const app: Express = express();
+const bodyParser = require("body-parser");
+const path = require("path");
+const cors = require("cors"); // allows/disallows cross-site communication
+require("dotenv").config();
 
-const PORT: number = Number(process.env.PORT) || 8080
+const PORT: number = Number(process.env.PORT) || 8080;
 
-import { AxiosResponse } from 'axios'
-import { CorsOptions } from 'cors'
-import { Express } from 'express'
-import { IArtist, Irooms, Itracks } from './interface'
-import { createServer } from 'http'
-import { Server } from 'socket.io'
+import { AxiosResponse } from "axios";
+import { CorsOptions } from "cors";
+import { Express } from "express";
+import { IArtist, Irooms, Itracks } from "./interface";
+import { createServer } from "http";
+import { Server } from "socket.io";
 
-const whitelist: string[] = ['http://localhost:3000', 'http://localhost:8081']
+const whitelist: string[] = [
+  "http://localhost:3000",
+  "http://localhost:8080",
+  // !! have to add heroku link HERE !!
+];
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
     if (!origin || whitelist.indexOf(origin) !== -1) {
-      callback(null, true)
+      callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'))
+      callback(new Error("Not allowed by CORS"));
     }
   },
-}
+};
+
 
 // helper functions
 const {
@@ -33,48 +38,48 @@ const {
   filterTitles,
   createAutocomplete,
   queryArtist,
-} = require('./helpers/spotify')
-const { getTrack, findRoomIndex, findUserIndex } = require('./helpers/game')
-const sampleSonglist = require('./helpers/autocompleteSongs')
-
+} = require("./helpers/spotify");
+const { getTrack, findRoomIndex, findUserIndex } = require("./helpers/game");
+const sampleSonglist = require("./helpers/autocompleteSongs");
 // Server set up
-const server = createServer(app)
-const io = new Server(server)
+const server = createServer(app);
+const io = new Server(server);
 
-// Express Configuration
-app.use(BodyParser.urlencoded({ extended: false }))
-app.use(BodyParser.json())
-app.use(express.static('public'))
-app.use(cors(corsOptions))
+// express configuration
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+app.use(express.static("public"));
+app.use(cors(corsOptions));
 
-if (process.env.NODE_ENV === 'production') {
+if (process.env.NODE_ENV === "production") {
   // Serve any static files
-  app.use(express.static(path.join(__dirname, 'react-front-end/build')))
+  app.use(express.static(path.join(__dirname, "react-front-end/build")));
   // Handle React routing, return all requests to React app
-  app.get('*', function (req: any, res: any) {
-    res.sendFile(path.join(__dirname, 'react-front-end/build', 'index.html'))
-  })
+  app.get("*", function (req, res) {
+    res.sendFile(path.join(__dirname, "react-front-end/build", "index.html"));
+  });
 }
 
 server.listen(PORT, () => {
-  console.log(`seems to be listening on port ${PORT} 🙉`)
-})
+  console.log(`Express is listening on port ${PORT} 👍`);
+});
+
 
 // global variables
-let token: string = ''
-let rooms: Irooms[] = []
-const maxNumPlayers: number = 8
+let token: string  = "";
+let rooms: Irooms[] = [];
+const maxNumPlayers: number = 8;
 
 // retrieves authentication token from spotify
 getToken().then((res: AxiosResponse) => {
-  token = res.data.access_token
-})
-
+  console.log(res.data.access_token)
+  token = res.data.access_token;
+});
 setInterval(() => {
   getToken().then((res: AxiosResponse) => {
-    token = res.data.access_token
-  })
-}, 3.5e6)
+    token = res.data.access_token;
+  });
+}, 3.5e6);
 
 /* New socket CONNECTION established to server from client
  * @params - {Socket object}: Socket
@@ -85,18 +90,19 @@ setInterval(() => {
  *
  * @return - <message>: 'update-users' - Send a socket emit to the room, updating the clients with the user information
  */
-io.on('connection', (socket) => {
-  let { username, roomId, avatar } = socket.handshake.query
-  let roomIndex = findRoomIndex(rooms, roomId)
+io.on("connection", (socket) => {
+
+  let { username, roomId, avatar } = socket.handshake.query;
+  let roomIndex = findRoomIndex(rooms, roomId);
 
   if (!roomId || Array.isArray(roomId)) {
-    return
+    return;
   }
   if (!username || Array.isArray(username)) {
-    return
+    return;
   }
   if (!avatar || Array.isArray(avatar)) {
-    return
+    return;
   }
 
   if (roomIndex === -1) {
@@ -119,12 +125,12 @@ io.on('connection', (socket) => {
           winning: false,
         },
       ],
-    })
-    roomIndex = findRoomIndex(rooms, roomId)
-    io.to(socket.id).emit('joined-room', 'success')
+    });
+    roomIndex = findRoomIndex(rooms, roomId);
+    io.to(socket.id).emit("joined-room", "success");
   } else {
     if (rooms[roomIndex].users.length >= maxNumPlayers) {
-      return io.to(socket.id).emit('room-full', 'Room is full')
+      return io.to(socket.id).emit("room-full", "Room is full");
     }
     rooms[roomIndex].users.push({
       id: socket.id,
@@ -135,16 +141,16 @@ io.on('connection', (socket) => {
       roundScore: 0,
       host: false,
       winning: false,
-    })
-    io.to(socket.id).emit('joined-room', 'success')
+    });
+    io.to(socket.id).emit("joined-room", "success");
   }
 
-  let userIndex = findUserIndex(rooms[roomIndex], socket.id)
-  socket.join(roomId)
+  let userIndex = findUserIndex(rooms[roomIndex], socket.id);
+  socket.join(roomId);
 
   // io.in(roomId).emit("update-users", rooms[roomIndex]?.users);
-  io.in(rooms[roomIndex]?.id).emit('update-users', rooms[roomIndex]?.users)
-  io.to(socket.id).emit('update-user', rooms[roomIndex]?.users[userIndex])
+  io.in(rooms[roomIndex]?.id).emit("update-users", rooms[roomIndex]?.users);
+  io.to(socket.id).emit("update-user", rooms[roomIndex]?.users[userIndex]);
 
   /* NEW GAME message sent to the sever.
    * @params - <message>: 'new-game'
@@ -154,15 +160,15 @@ io.on('connection', (socket) => {
    * @return - <message>: 'update-users', {users[]} - Update all clients in the room with the zeroed scores
    * @return - <message>: 'start-new-game' - Instruct all users to transition to the LOBBY mode
    */
-  socket.on('new-game', () => {
-    rooms[roomIndex].currentRound = 1
+  socket.on("new-game", () => {
+    rooms[roomIndex].currentRound = 1;
     rooms[roomIndex]?.users.forEach((u) => {
-      u.score = 0
-      u.roundScore = 0
-    })
-    io.in(rooms[roomIndex]?.id).emit('update-users', rooms[roomIndex]?.users)
-    io.in(rooms[roomIndex]?.id).emit('start-new-game', 'new-game')
-  })
+      u.score = 0;
+      u.roundScore = 0;
+    });
+    io.in(rooms[roomIndex]?.id).emit("update-users", rooms[roomIndex]?.users);
+    io.in(rooms[roomIndex]?.id).emit("start-new-game", "new-game");
+  });
 
   /* START GAME message sent to the sever.
    * @params - <message>: 'new-game', {genre, rounds} - the genre and number of rounds selected for the game
@@ -178,38 +184,37 @@ io.on('connection', (socket) => {
    * @return - <message>: 'game-started' - Instruct all users to transition to the COUNTDOWN mode
    * @return - 5 second delay - <message>: 'round-start' - Instruct all users to transition to the ROUND mode to start the round
    */
-  socket.on('start-game', (genre: string, rounds: number, artist: string) => {
+  socket.on("start-game", (genre: string, rounds: number, artist: string) => {
+    
     getPlaylist(token, genre, artist).then((result: AxiosResponse) => {
-      const tracks: Itracks[] = result.data.tracks.filter(
-        (t: Itracks) => t.preview_url !== null
-      )
-      const titles = filterTitles(tracks)
+      const tracks: Itracks[] = result.data.tracks.filter((t: Itracks) => t.preview_url !== null);
+      const titles = filterTitles(tracks);
 
-      rooms[roomIndex] = { ...rooms[roomIndex], tracks, titles, rounds }
+      rooms[roomIndex] = { ...rooms[roomIndex], tracks, titles, rounds };
       if (!roomId || Array.isArray(roomId)) {
-        return
+        return;
       }
 
       if (tracks.length >= rooms[roomIndex].rounds) {
-        const nextTrack = getTrack(rooms, roomId)
-        const autocomplete = createAutocomplete(sampleSonglist, titles)
+        const nextTrack = getTrack(rooms, roomId);
+        const autocomplete = createAutocomplete(sampleSonglist, titles);
 
-        io.to(roomId).emit('next-track', nextTrack)
-        io.to(roomId).emit('track-list', autocomplete)
+        io.to(roomId).emit("next-track", nextTrack);
+        io.to(roomId).emit("track-list", autocomplete);
 
-        io.to(roomId).emit('game-started', roomId)
+        io.to(roomId).emit("game-started", roomId);
         setTimeout(() => {
-          if (rooms[roomIndex] === undefined) return
+          if (rooms[roomIndex] === undefined) return;
           io.to(rooms[roomIndex]?.id).emit(
-            'round-start',
+            "round-start",
             rooms[roomIndex]?.currentRound
-          )
-        }, 5000)
+          );
+        }, 5000);
       } else {
-        io.to(roomId).emit('error', 'Please select a different artist.')
+        io.to(roomId).emit("error", "Please select a different artist.");
       }
-    })
-  })
+    });
+  });
 
   /* END OF ROUND message sent to the sever.
    * @params - <message>: 'end-of-round'
@@ -226,43 +231,44 @@ io.on('connection', (socket) => {
    *          - 15 second delay - <message>: 'round-start',  {currentRound} current round
    *          - Update the client with the current round and direct them to start the round
    */
-  socket.on('end-of-round', () => {
-    userIndex = findUserIndex(rooms[roomIndex], socket.id)
+  socket.on("end-of-round", () => {
+    
+    userIndex = findUserIndex(rooms[roomIndex], socket.id);
 
-    if (!rooms[roomIndex]?.users[userIndex].host) return
-    rooms[roomIndex].currentRound++
+    if (!rooms[roomIndex]?.users[userIndex].host) return;
+    rooms[roomIndex].currentRound++;
 
     if (rooms[roomIndex]?.currentRound === rooms[roomIndex]?.rounds + 1) {
       return setTimeout(() => {
         if (!roomId || Array.isArray(roomId)) {
-          return
+          return;
         }
-        if (rooms[roomIndex] === undefined) return
-        io.in(roomId).emit('end-of-game', 'End of Game')
-      }, 10000)
+        if (rooms[roomIndex] === undefined) return;
+        io.in(roomId).emit("end-of-game", "End of Game");
+      }, 10000);
     }
 
-    const nextTrack = getTrack(rooms, roomId)
+    const nextTrack = getTrack(rooms, roomId);
     setTimeout(() => {
-      if (rooms[roomIndex] === undefined) return
+      if (rooms[roomIndex] === undefined) return;
       rooms[roomIndex]?.users.forEach((user) => {
-        user.roundScore = 0
-      })
+        user.roundScore = 0;
+      });
       if (!roomId || Array.isArray(roomId)) {
-        return
+        return;
       }
-      io.in(roomId).emit('next-round', nextTrack)
-    }, 10000)
+      io.in(roomId).emit("next-round", nextTrack);
+    }, 10000);
 
     setTimeout(() => {
       // After the 5 second countdown, Tell clients to play track and start guessing
-      if (rooms[roomIndex] === undefined) return
+      if (rooms[roomIndex] === undefined) return;
       if (!roomId || Array.isArray(roomId)) {
-        return
+        return;
       }
-      io.to(roomId).emit('round-start', rooms[roomIndex]?.currentRound)
-    }, 15000)
-  })
+      io.to(roomId).emit("round-start", rooms[roomIndex]?.currentRound);
+    }, 15000);
+  });
 
   /* CORRECT ANSWER message sent to the sever.
    * @params - <message>: 'correct-answer'
@@ -271,33 +277,33 @@ io.on('connection', (socket) => {
    * @return - <message>: 'update-users' - Update all clients in the room with the updated scores
    * @return - <message>: 'receive-chat-messages' - Update all clients in the room with a message stating a corrent answer was sumbitted by the user
    */
-  socket.on('correct-answer', (score: number) => {
+  socket.on("correct-answer", (score: number) => {
     if (!roomId || Array.isArray(roomId)) {
-      return
+      return;
     }
-    userIndex = findUserIndex(rooms[roomIndex], socket.id)
+    userIndex = findUserIndex(rooms[roomIndex], socket.id);
 
-    if (rooms[roomIndex]?.users[userIndex].roundScore) return
+    if (rooms[roomIndex]?.users[userIndex].roundScore) return;
 
-    rooms[roomIndex].users[userIndex].score += score
-    rooms[roomIndex].users[userIndex].roundScore = score
+    rooms[roomIndex].users[userIndex].score += score;
+    rooms[roomIndex].users[userIndex].roundScore = score;
 
-    rooms[roomIndex]?.users.sort((a, b) => b.score - a.score)
-    rooms[roomIndex].users[0].winning = true
+    rooms[roomIndex]?.users.sort((a, b) => b.score - a.score);
+    rooms[roomIndex].users[0].winning = true;
     if (rooms[roomIndex]?.users.length > 1) {
       for (let i = 1; i < rooms[roomIndex]?.users.length; i++) {
-        rooms[roomIndex].users[i].winning = false
+        rooms[roomIndex].users[i].winning = false;
       }
     }
 
-    io.in(roomId).emit('update-users', rooms[roomIndex]?.users)
+    io.in(roomId).emit("update-users", rooms[roomIndex]?.users);
 
-    io.in(roomId).emit('receive-chat-messages', {
+    io.in(roomId).emit("receive-chat-messages", {
       username,
       message: `Correct guess! Scored: ${score}`,
       avatar,
-    })
-  })
+    });
+  });
 
   /* SEND CHAT MESSAGE message sent to the sever.
    * @params - <message>: 'send-chat-message'
@@ -305,13 +311,13 @@ io.on('connection', (socket) => {
    *
    * @return - <message>: 'receive-chat-messages' {username, message, avatar} - Update all clients in the room with a message sent by the socket
    */
-  socket.on('send-chat-message', (message: string) => {
-    io.in(rooms[roomIndex]?.id).emit('receive-chat-messages', {
+  socket.on("send-chat-message", (message: string) => {
+    io.in(rooms[roomIndex]?.id).emit("receive-chat-messages", {
       username,
       message,
       avatar,
-    })
-  })
+    });
+  });
 
   /* SEARCH ARTIST message sent to the sever.
    * @params - <message>: 'search-artist'
@@ -319,19 +325,19 @@ io.on('connection', (socket) => {
    *
    * @return - <message>: 'artist-list' {artist, id} - An array of artist and that artist corrisponding Spotify id
    */
-  socket.on('search-artist', (searchParam: string) => {
+  socket.on("search-artist", (searchParam: string) => {
     queryArtist(token, searchParam).then((result: AxiosResponse) => {
       if (!roomId || Array.isArray(roomId)) {
-        return
+        return;
       }
       io.to(roomId).emit(
-        'artist-list',
+        "artist-list",
         result.data.artists.items.map((artist: IArtist) => {
-          return { artist: artist.name, id: artist.id }
+          return { artist: artist.name, id: artist.id };
         })
-      )
-    })
-  })
+      );
+    });
+  });
 
   // disconnects user and removes them from users array
   /* Socket has DISCONNECTed message sent to the sever.
@@ -344,29 +350,29 @@ io.on('connection', (socket) => {
    *
    * @return - <message>: 'update-users', {users[]} - Update all clients in the room with the current users in the room
    */
-  socket.on('disconnect', () => {
+  socket.on("disconnect", () => {
     if (!roomId || Array.isArray(roomId)) {
-      return
+      return;
     }
-    userIndex = findUserIndex(rooms[roomIndex], socket.id)
-    if (userIndex === -1) return
-    const disUser = rooms[roomIndex]?.users[userIndex]
-    if (!disUser) return
+    userIndex = findUserIndex(rooms[roomIndex], socket.id);
+    if (userIndex === -1) return;
+    const disUser = rooms[roomIndex]?.users[userIndex];
+    if (!disUser) return;
 
     rooms[roomIndex].users = rooms[roomIndex]?.users.filter(
       ({ id }) => id !== socket.id
-    )
+    );
 
     if (disUser?.host) {
       if (rooms[roomIndex]?.users.length !== 0) {
-        rooms[roomIndex].users[0].host = true
-        console.log('New host ', rooms[roomIndex]?.users[0])
-      } else return rooms.splice(roomIndex, 1)
+        rooms[roomIndex].users[0].host = true;
+        console.log("New host ", rooms[roomIndex]?.users[0]);
+      } else return rooms.splice(roomIndex, 1);
     }
-    io.in(roomId).emit('update-users', rooms[roomIndex]?.users)
+    io.in(roomId).emit("update-users", rooms[roomIndex]?.users);
     io.to(rooms[roomIndex]?.users[0].id).emit(
-      'update-user',
+      "update-user",
       rooms[roomIndex]?.users[0]
-    )
-  })
-})
+    );
+  });
+});
