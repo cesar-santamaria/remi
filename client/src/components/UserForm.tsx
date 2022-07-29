@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { IUserFormProps, IUser } from "../Interfaces";
-import { lightTheme } from "../styles/theme";
 
 // helpers
 import { getUrlParams } from "../helpers/roomGenerator";
