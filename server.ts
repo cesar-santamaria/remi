@@ -72,7 +72,6 @@ const maxNumPlayers: number = 8;
 
 // retrieves authentication token from spotify
 getToken().then((res: AxiosResponse) => {
-  console.log(res.data.access_token)
   token = res.data.access_token;
 });
 setInterval(() => {
