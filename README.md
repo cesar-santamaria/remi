@@ -3,8 +3,8 @@ Remi is a music trivia single/multiplayer game using the Spotify API!
 
 **Link to project:** https://remi-game.herokuapp.com/
 
-![Game Lobby](../remi/client/src/assets/remi_home.png)
-![Game](../remi/client/src/assets/remi_game.png)
+![Game Lobby](./remi_home.png)
+![Game](./remi_game.png)
 
 ## How It's Made:
 
