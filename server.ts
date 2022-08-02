@@ -17,7 +17,7 @@ import { Server } from "socket.io";
 const whitelist: string[] = [
   "http://localhost:3000",
   "http://localhost:8080",
-  // !! have to add heroku link HERE !!
+  "https://git.heroku.com/remi-game.git",
 ];
 
 const corsOptions: CorsOptions = {
