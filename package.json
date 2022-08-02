@@ -6,7 +6,7 @@
   "scripts": {
     "go": "nodemon server.ts",
     "start": "ts-node server.ts",
-    "heroku-postbuild": "cd react-front-end && npm install --dev typescript && npm install && npm run build"
+    "heroku-postbuild": "cd client && npm install --dev typescript && npm install && npm run build"
   },
   "author": "Cesar Santamaria",
   "license": "ISC",
